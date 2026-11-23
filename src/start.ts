@@ -3,6 +3,7 @@ import {
   createMiddleware,
   createStart,
 } from "@tanstack/react-start"
+import { sceneNegotiation } from "@/middleware/scene-negotiation"
 
 /**
  * Start reads a server fn's whole body before auth runs. Twice the largest
@@ -41,6 +42,8 @@ export const noStoreByDefault = createMiddleware().server(async ({ next }) => {
 
 export const startInstance = createStart(() => ({
   requestMiddleware: [
+    // Before the page: an AI fetching /draw/<id> for the scene gets the file.
+    sceneNegotiation,
     noStoreByDefault,
     serverFnBodyLimit,
     // Start's default, which a start instance replaces.

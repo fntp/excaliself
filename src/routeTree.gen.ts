@@ -39,6 +39,7 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiOauthRegisterRouteImport } from './routes/api/oauth/register'
 import { Route as ApiOauthTokenRouteImport } from './routes/api/oauth/token'
 import { Route as DotwellKnownOauthProtectedResourceApiMcpRouteImport } from './routes/[.]well-known/oauth-protected-resource/api.mcp'
+import { Route as ApiDrawingsIdSceneRouteImport } from './routes/api/drawings/$id/scene'
 import { Route as ApiDrawingsIdFilesFileIdRouteImport } from './routes/api/drawings/$id/files/$fileId'
 import { Route as ApiRoomsTokenFilesFileIdRouteImport } from './routes/api/rooms/$token/files/$fileId'
 
@@ -194,6 +195,11 @@ const DotwellKnownOauthProtectedResourceApiMcpRoute =
     path: '/.well-known/oauth-protected-resource/api/mcp',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiDrawingsIdSceneRoute = ApiDrawingsIdSceneRouteImport.update({
+  id: '/api/drawings/$id/scene',
+  path: '/api/drawings/$id/scene',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDrawingsIdFilesFileIdRoute =
   ApiDrawingsIdFilesFileIdRouteImport.update({
     id: '/api/drawings/$id/files/$fileId',
@@ -237,6 +243,7 @@ export interface FileRoutesByFullPath {
   '/draw/': typeof AppDrawIndexRoute
   '/settings/': typeof AppSettingsIndexRoute
   '/.well-known/oauth-protected-resource/api/mcp': typeof DotwellKnownOauthProtectedResourceApiMcpRoute
+  '/api/drawings/$id/scene': typeof ApiDrawingsIdSceneRoute
   '/api/drawings/$id/files/$fileId': typeof ApiDrawingsIdFilesFileIdRoute
   '/api/rooms/$token/files/$fileId': typeof ApiRoomsTokenFilesFileIdRoute
 }
@@ -269,6 +276,7 @@ export interface FileRoutesByTo {
   '/draw': typeof AppDrawIndexRoute
   '/settings': typeof AppSettingsIndexRoute
   '/.well-known/oauth-protected-resource/api/mcp': typeof DotwellKnownOauthProtectedResourceApiMcpRoute
+  '/api/drawings/$id/scene': typeof ApiDrawingsIdSceneRoute
   '/api/drawings/$id/files/$fileId': typeof ApiDrawingsIdFilesFileIdRoute
   '/api/rooms/$token/files/$fileId': typeof ApiRoomsTokenFilesFileIdRoute
 }
@@ -304,6 +312,7 @@ export interface FileRoutesById {
   '/_app/draw/': typeof AppDrawIndexRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
   '/.well-known/oauth-protected-resource/api/mcp': typeof DotwellKnownOauthProtectedResourceApiMcpRoute
+  '/api/drawings/$id/scene': typeof ApiDrawingsIdSceneRoute
   '/api/drawings/$id/files/$fileId': typeof ApiDrawingsIdFilesFileIdRoute
   '/api/rooms/$token/files/$fileId': typeof ApiRoomsTokenFilesFileIdRoute
 }
@@ -339,6 +348,7 @@ export interface FileRouteTypes {
     | '/draw/'
     | '/settings/'
     | '/.well-known/oauth-protected-resource/api/mcp'
+    | '/api/drawings/$id/scene'
     | '/api/drawings/$id/files/$fileId'
     | '/api/rooms/$token/files/$fileId'
   fileRoutesByTo: FileRoutesByTo
@@ -371,6 +381,7 @@ export interface FileRouteTypes {
     | '/draw'
     | '/settings'
     | '/.well-known/oauth-protected-resource/api/mcp'
+    | '/api/drawings/$id/scene'
     | '/api/drawings/$id/files/$fileId'
     | '/api/rooms/$token/files/$fileId'
   id:
@@ -405,6 +416,7 @@ export interface FileRouteTypes {
     | '/_app/draw/'
     | '/_app/settings/'
     | '/.well-known/oauth-protected-resource/api/mcp'
+    | '/api/drawings/$id/scene'
     | '/api/drawings/$id/files/$fileId'
     | '/api/rooms/$token/files/$fileId'
   fileRoutesById: FileRoutesById
@@ -428,6 +440,7 @@ export interface RootRouteChildren {
   ApiOauthTokenRoute: typeof ApiOauthTokenRoute
   DotwellKnownOauthProtectedResourceIndexRoute: typeof DotwellKnownOauthProtectedResourceIndexRoute
   DotwellKnownOauthProtectedResourceApiMcpRoute: typeof DotwellKnownOauthProtectedResourceApiMcpRoute
+  ApiDrawingsIdSceneRoute: typeof ApiDrawingsIdSceneRoute
   ApiDrawingsIdFilesFileIdRoute: typeof ApiDrawingsIdFilesFileIdRoute
   ApiRoomsTokenFilesFileIdRoute: typeof ApiRoomsTokenFilesFileIdRoute
 }
@@ -644,6 +657,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DotwellKnownOauthProtectedResourceApiMcpRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/drawings/$id/scene': {
+      id: '/api/drawings/$id/scene'
+      path: '/api/drawings/$id/scene'
+      fullPath: '/api/drawings/$id/scene'
+      preLoaderRoute: typeof ApiDrawingsIdSceneRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/drawings/$id/files/$fileId': {
       id: '/api/drawings/$id/files/$fileId'
       path: '/api/drawings/$id/files/$fileId'
@@ -726,6 +746,7 @@ const rootRouteChildren: RootRouteChildren = {
     DotwellKnownOauthProtectedResourceIndexRoute,
   DotwellKnownOauthProtectedResourceApiMcpRoute:
     DotwellKnownOauthProtectedResourceApiMcpRoute,
+  ApiDrawingsIdSceneRoute: ApiDrawingsIdSceneRoute,
   ApiDrawingsIdFilesFileIdRoute: ApiDrawingsIdFilesFileIdRoute,
   ApiRoomsTokenFilesFileIdRoute: ApiRoomsTokenFilesFileIdRoute,
 }
