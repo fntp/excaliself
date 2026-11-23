@@ -42,7 +42,6 @@ import {
   COMMENTS_CHANGED,
   EDITS_CHANGED,
 } from "@/features/list-updates/protocol"
-import { accessibleTo } from "@/features/spaces/access"
 import { restoreDrawingUnit, restoreFolderUnit } from "@/features/trash/restore"
 import { purgeDeadline, TRASH_RETENTION_DAYS } from "@/features/trash/retention"
 import { trashDrawingUnit, trashFolderUnit } from "@/features/trash/trash"
@@ -66,6 +65,8 @@ import {
   type SceneGraph,
 } from "./scene/skeleton"
 import { summarizeScene } from "./summary"
+import { parseDrawingTarget } from "./target"
+import { resolveTargetForMember } from "./target-resolve"
 
 export type Member = {
   id: string
@@ -145,8 +146,20 @@ Comments you write show as written by this member via ${member.client}, and appe
     return { list, paths: folderPaths(folders) }
   }
 
-  /** A drawing the member can see and that is not trashed. */
-  const findDrawing = async (id: string) => {
+  /** A drawing the member named by id or link, and can see, that is not trashed. */
+  const findDrawing = async (input: string) => {
+    const target = parseDrawingTarget(input)
+    // Resolve through one place, so a pasted /draw or /share link works
+    // wherever a bare id did.
+    const resolved = target
+      ? await resolveTargetForMember(db, target, member.id)
+      : null
+    if (resolved?.status !== "ok") {
+      throw new Error(
+        "No drawing has that id. Find one with list_drawings or search_drawings.",
+      )
+    }
+    const id = resolved.drawingId
     const [drawing] = await db
       .select({
         name: drawings.name,
@@ -156,20 +169,28 @@ Comments you write show as written by this member via ${member.client}, and appe
         updatedAt: drawings.updatedAt,
       })
       .from(drawings)
-      .where(
-        and(
-          eq(drawings.id, id),
-          accessibleTo(drawings, member.id),
-          isNull(drawings.deletedAt),
-        ),
-      )
+      .where(and(eq(drawings.id, id), isNull(drawings.deletedAt)))
     // Same answer for a missing drawing and one the member can't see.
     if (!drawing) {
       throw new Error(
         "No drawing has that id. Find one with list_drawings or search_drawings.",
       )
     }
-    return drawing
+    return { ...drawing, id }
+  }
+
+  /** The drawing id a member named by id or link, without loading its scene. */
+  const resolveDrawingId = async (input: string) => {
+    const target = parseDrawingTarget(input)
+    const resolved = target
+      ? await resolveTargetForMember(db, target, member.id)
+      : null
+    if (resolved?.status !== "ok") {
+      throw new Error(
+        "No drawing has that id. Find one with list_drawings or search_drawings.",
+      )
+    }
+    return resolved.drawingId
   }
 
   /** The scene now: a live Room holds newer edits than the stored scene. */
@@ -288,14 +309,16 @@ Comments you write show as written by this member via ${member.client}, and appe
       inputSchema: z.object({
         id: z
           .string()
-          .describe("A drawing id from list_drawings or search_drawings."),
+          .describe(
+            "A drawing id from list_drawings, or a link to it: the /draw/<id> link, or a Share link the member pasted.",
+          ),
       }),
       annotations: { readOnlyHint: true },
     },
     async ({ id }) => {
       const drawing = await findDrawing(id)
-      const elements = await currentElements(id, drawing.data)
-      const openThreads = await countOpenThreads(db, id)
+      const elements = await currentElements(drawing.id, drawing.data)
+      const openThreads = await countOpenThreads(db, drawing.id)
 
       const folder = drawing.folderId
         ? folderPaths(await listFolders(db, member.id)).get(drawing.folderId)
@@ -306,7 +329,7 @@ Comments you write show as written by this member via ${member.client}, and appe
       ].join("")
       return text(
         [
-          `${JSON.stringify(drawing.name)} (${where}), last edited ${drawing.updatedAt.toISOString()}. ${drawingUrl(id)}`,
+          `${JSON.stringify(drawing.name)} (${where}), last edited ${drawing.updatedAt.toISOString()}. ${drawingUrl(drawing.id)}`,
           summarizeScene(elements),
           ...(openThreads > 0
             ? [
@@ -328,7 +351,9 @@ Comments you write show as written by this member via ${member.client}, and appe
       inputSchema: z.object({
         id: z
           .string()
-          .describe("A drawing id from list_drawings or search_drawings."),
+          .describe(
+            "A drawing id from list_drawings, or a link to it: the /draw/<id> link, or a Share link the member pasted.",
+          ),
         format: z
           .enum(["png", "svg"])
           .default("png")
@@ -365,12 +390,13 @@ Comments you write show as written by this member via ${member.client}, and appe
       const drawing = await findDrawing(id)
       // A live Room holds newer edits than the stored scene.
       const elements =
-        (await roomElements(rooms, id)) ?? parseSceneElements(drawing.data)
+        (await roomElements(rooms, drawing.id)) ??
+        parseSceneElements(drawing.data)
       if (!elements)
         throw new Error("This drawing's data is damaged and can't be read.")
       const image = await exportImage(
         elements,
-        await loadImageFiles(db, id, elements),
+        await loadImageFiles(db, drawing.id, elements),
         {
           format,
           darkMode,
@@ -393,7 +419,7 @@ Comments you write show as written by this member via ${member.client}, and appe
               width: image.width,
               height: image.height,
               bytes: image.data.length,
-              url: drawingUrl(id),
+              url: drawingUrl(drawing.id),
             }),
           },
           image.mimeType === "image/png"
@@ -401,7 +427,7 @@ Comments you write show as written by this member via ${member.client}, and appe
             : {
                 type: "resource" as const,
                 resource: {
-                  uri: `excaliself://export/${id}.svg`,
+                  uri: `excaliself://export/${drawing.id}.svg`,
                   mimeType: image.mimeType,
                   blob: data,
                 },
@@ -421,7 +447,9 @@ Images are left out by default: their elements stay, but show as missing images.
       inputSchema: z.object({
         id: z
           .string()
-          .describe("A drawing id from list_drawings or search_drawings."),
+          .describe(
+            "A drawing id from list_drawings, or a link to it: the /draw/<id> link, or a Share link the member pasted.",
+          ),
         includeImages: z
           .boolean()
           .default(false)
@@ -433,11 +461,12 @@ Images are left out by default: their elements stay, but show as missing images.
       const drawing = await findDrawing(id)
       // A live Room holds newer edits than the stored scene.
       const elements =
-        (await roomElements(rooms, id)) ?? parseSceneElements(drawing.data)
+        (await roomElements(rooms, drawing.id)) ??
+        parseSceneElements(drawing.data)
       if (!elements)
         throw new Error("This drawing's data is damaged and can't be read.")
       const files = includeImages
-        ? await loadImageFiles(db, id, elements)
+        ? await loadImageFiles(db, drawing.id, elements)
         : new Map()
       const file = Buffer.from(
         toExcalidrawFile({
@@ -464,13 +493,13 @@ Images are left out by default: their elements stay, but show as missing images.
               elements: elements.filter((element) => !element.isDeleted).length,
               images: files.size,
               bytes: file.length,
-              url: drawingUrl(id),
+              url: drawingUrl(drawing.id),
             }),
           },
           {
             type: "resource" as const,
             resource: {
-              uri: `excaliself://export/${id}.excalidraw`,
+              uri: `excaliself://export/${drawing.id}.excalidraw`,
               mimeType: "application/vnd.excalidraw+json",
               blob: file.toString("base64"),
             },
@@ -661,7 +690,9 @@ Read the drawing with read_drawing first, and refer to its elements by the [id â
       inputSchema: z.object({
         id: z
           .string()
-          .describe("A drawing id from list_drawings or search_drawings."),
+          .describe(
+            "A drawing id from list_drawings, or a link to it: the /draw/<id> link, or a Share link the member pasted.",
+          ),
         summary: z
           .string()
           .trim()
@@ -690,7 +721,7 @@ Read the drawing with read_drawing first, and refer to its elements by the [id â
         throw new Error("Nothing to change: give add, change, or remove.")
       const drawing = await findDrawing(id)
       // A live Room holds newer edits than the stored scene.
-      const live = await roomElements(rooms, id)
+      const live = await roomElements(rooms, drawing.id)
       const stored = live ? null : parseStoredScene(drawing.data)
       if (stored && !stored.readable)
         throw new Error("This drawing's data is damaged and can't be changed.")
@@ -700,7 +731,7 @@ Read the drawing with read_drawing first, and refer to its elements by the [id â
         remove,
       })
       const edit = drawingEdits.propose({
-        drawingId: id,
+        drawingId: drawing.id,
         userId: member.id,
         client: member.client,
         summary,
@@ -778,7 +809,9 @@ Read the drawing with read_drawing first, and refer to its elements by the [id â
       inputSchema: z.object({
         id: z
           .string()
-          .describe("A drawing id from list_drawings or search_drawings."),
+          .describe(
+            "A drawing id from list_drawings, or a link to it: the /draw/<id> link, or a Share link the member pasted.",
+          ),
         // Optional, not nullable: some clients reject a ["string", "null"] type.
         folderId: z
           .string()
@@ -796,8 +829,9 @@ Read the drawing with read_drawing first, and refer to its elements by the [id â
       },
     },
     async ({ id, folderId }) => {
+      const drawingId = await resolveDrawingId(id)
       try {
-        await updateDrawingFields(db, member.id, id, {
+        await updateDrawingFields(db, member.id, drawingId, {
           folderId: folderId ?? null,
         })
       } catch (error) {
@@ -813,7 +847,11 @@ Read the drawing with read_drawing first, and refer to its elements by the [id â
       const folder = folderId
         ? folderPaths(await listFolders(db, member.id)).get(folderId)
         : undefined
-      return json({ id, folder: folder ?? null, url: drawingUrl(id) })
+      return json({
+        id: drawingId,
+        folder: folder ?? null,
+        url: drawingUrl(drawingId),
+      })
     },
   )
 
@@ -831,7 +869,9 @@ Read the drawing with read_drawing first, and refer to its elements by the [id â
       inputSchema: z.object({
         id: z
           .string()
-          .describe("A drawing id from list_drawings or search_drawings."),
+          .describe(
+            "A drawing id from list_drawings, or a link to it: the /draw/<id> link, or a Share link the member pasted.",
+          ),
       }),
       annotations: {
         readOnlyHint: false,
@@ -840,10 +880,11 @@ Read the drawing with read_drawing first, and refer to its elements by the [id â
       },
     },
     async ({ id }) => {
-      await trashDrawingUnit(db, member.id, id)
-      await endTrashedRooms([id], trasher)
+      const drawingId = await resolveDrawingId(id)
+      await trashDrawingUnit(db, member.id, drawingId)
+      await endTrashedRooms([drawingId], trasher)
       listUpdates.notify()
-      return json(trashed(id))
+      return json(trashed(drawingId))
     },
   )
 
@@ -926,7 +967,9 @@ Read the drawing with read_drawing first, and refer to its elements by the [id â
       inputSchema: z.object({
         id: z
           .string()
-          .describe("A drawing id from list_drawings or search_drawings."),
+          .describe(
+            "A drawing id from list_drawings, or a link to it: the /draw/<id> link, or a Share link the member pasted.",
+          ),
         includeResolved: z
           .boolean()
           .default(false)
@@ -936,8 +979,8 @@ Read the drawing with read_drawing first, and refer to its elements by the [id â
     },
     async ({ id, includeResolved }) => {
       const drawing = await findDrawing(id)
-      const elements = await currentElements(id, drawing.data)
-      const threads = (await listThreads(db, member.id, id)).filter(
+      const elements = await currentElements(drawing.id, drawing.data)
+      const threads = (await listThreads(db, member.id, drawing.id)).filter(
         (thread) => includeResolved || thread.resolvedAt === null,
       )
       return json({
@@ -957,7 +1000,7 @@ Read the drawing with read_drawing first, and refer to its elements by the [id â
             ...(comment.editedAt && { edited: true }),
           })),
         })),
-        url: drawingUrl(id),
+        url: drawingUrl(drawing.id),
       })
     },
   )
@@ -971,7 +1014,9 @@ Read the drawing with read_drawing first, and refer to its elements by the [id â
       inputSchema: z.object({
         id: z
           .string()
-          .describe("A drawing id from list_drawings or search_drawings."),
+          .describe(
+            "A drawing id from list_drawings, or a link to it: the /draw/<id> link, or a Share link the member pasted.",
+          ),
         body: commentBodyInput,
         elementId: z
           .string()
@@ -983,17 +1028,17 @@ Read the drawing with read_drawing first, and refer to its elements by the [id â
     async ({ id, body, elementId }) => {
       const drawing = await findDrawing(id)
       const anchor = anchorForTool(
-        await currentElements(id, drawing.data),
+        await currentElements(drawing.id, drawing.data),
         elementId,
       )
       const threadId = await createThread(db, member.id, {
-        drawingId: id,
+        drawingId: drawing.id,
         anchor,
         body,
         via: member.client,
       })
       listUpdates.notify(COMMENTS_CHANGED)
-      return json({ threadId, url: drawingUrl(id) })
+      return json({ threadId, url: drawingUrl(drawing.id) })
     },
   )
 
