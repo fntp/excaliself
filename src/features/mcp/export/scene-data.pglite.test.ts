@@ -1,12 +1,12 @@
 // @vitest-environment node
 import { expect, test } from "vitest"
 import { demoAdmin } from "@/db/demo-content"
-import { createPreviewDb } from "@/db/preview"
+import { createTestDb } from "@/db/test-db"
 import { drawingFiles, drawings } from "@/db/schema"
 import { loadImageFiles } from "./scene-data"
 
 test("loads only the files of the scene's live images, as data URLs", async () => {
-  const db = await createPreviewDb()
+  const db = await createTestDb()
   await db.insert(drawings).values({
     id: "photos",
     name: "Photos",

@@ -1,5 +1,5 @@
 import type { SQL } from "drizzle-orm"
-import { PgDialect } from "drizzle-orm/pg-core"
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core"
 import { expect, test } from "vitest"
 import { drawings, folders, type Space } from "@/db/schema"
 import { accessibleTo } from "@/features/spaces/access"
@@ -36,7 +36,7 @@ function fakeDb(options: {
   const locks: { sql: string; updatesBefore: number }[] = []
   const tx = {
     execute: (query: SQL) => {
-      const { sql } = new PgDialect().sqlToQuery(query)
+      const { sql } = new SQLiteSyncDialect().sqlToQuery(query)
       locks.push({ sql, updatesBefore: updates.length })
       return Promise.resolve()
     },

@@ -1,5 +1,6 @@
 import type { SQL } from "drizzle-orm"
-import { getTableConfig, PgDialect } from "drizzle-orm/pg-core"
+import { getTableConfig, SQLiteSyncDialect } from "drizzle-orm/sqlite-core"
+import type { SQLiteTable } from "drizzle-orm/sqlite-core"
 import { expect, test } from "vitest"
 import { drawings, folders, users, verifications } from "@/db/schema"
 import { inPrivateSpaceOf } from "@/features/spaces/access"
@@ -16,7 +17,7 @@ type Call =
 
 // Renders a captured drizzle condition so tests can assert what the SQL
 // actually matches — mirrors destroy.test.ts.
-const toSql = (where: SQL) => new PgDialect().sqlToQuery(where)
+const toSql = (where: SQL) => new SQLiteSyncDialect().sqlToQuery(where)
 
 function fakeDb(options: {
   /** What the locking read returns: the target row plus every admin. */
@@ -150,6 +151,14 @@ test("deletes the member's Private drawings and folders; their Team rows lose on
 
   await deleteUserAccount(db, "admin-1", "user-bea")
 
+  // Team rows are left to the FK, which keeps them with createdBy = null.
+  const creatorPersists = (table: SQLiteTable) =>
+    getTableConfig(table).foreignKeys.some(
+      (fk) =>
+        fk.reference().columns[0].name === "createdBy" &&
+        fk.onDelete === "set null",
+    )
+
   for (const table of [drawings, folders]) {
     const del = calls.find(
       (call) => call.kind === "delete" && call.table === table,
@@ -158,11 +167,7 @@ test("deletes the member's Private drawings and folders; their Team rows lose on
       (del as { where: SQL }).where,
       inPrivateSpaceOf(table, "user-bea"),
     )
-    // Team rows are left to the FK, which keeps them with createdBy = null.
-    const creator = getTableConfig(table).foreignKeys.find(
-      (fk) => fk.reference().columns[0].name === "createdBy",
-    )
-    expect(creator?.onDelete).toBe("set null")
+    expect(creatorPersists(table)).toBe(true)
   }
 })
 

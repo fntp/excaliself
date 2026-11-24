@@ -5,6 +5,7 @@ import { and, eq, inArray } from "drizzle-orm"
 import type { Db } from "@/db"
 import { drawingFiles } from "@/db/schema"
 import { bytesToDataUrl } from "@/features/drawings/file-bytes"
+import { readDrawingImages } from "@/features/drawings/image-store"
 
 /** An image file, as Excalidraw's BinaryFiles hold it. */
 export type SceneFile = {
@@ -36,7 +37,6 @@ export async function loadImageFiles(
     .select({
       fileId: drawingFiles.fileId,
       mimeType: drawingFiles.mimeType,
-      bytes: drawingFiles.bytes,
       createdAt: drawingFiles.createdAt,
     })
     .from(drawingFiles)
@@ -46,16 +46,29 @@ export async function loadImageFiles(
         inArray(drawingFiles.fileId, fileIds),
       ),
     )
+  if (rows.length === 0) return new Map()
+
+  // Bytes come from R2; the rows only index them.
+  const images = await readDrawingImages(
+    drawingId,
+    rows.map((row) => row.fileId),
+  )
   return new Map(
-    rows.map(({ fileId, mimeType, bytes, createdAt }) => [
-      fileId,
-      {
-        id: fileId,
-        mimeType,
-        dataURL: bytesToDataUrl(mimeType, Buffer.from(bytes)),
-        created: createdAt.getTime(),
-      },
-    ]),
+    rows.flatMap(({ fileId, mimeType, createdAt }) => {
+      const bytes = images.get(fileId)
+      if (!bytes) return []
+      return [
+        [
+          fileId,
+          {
+            id: fileId,
+            mimeType,
+            dataURL: bytesToDataUrl(mimeType, Buffer.from(bytes)),
+            created: createdAt.getTime(),
+          },
+        ] as const,
+      ]
+    }),
   )
 }
 

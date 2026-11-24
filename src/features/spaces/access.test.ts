@@ -1,11 +1,11 @@
 import type { SQL } from "drizzle-orm"
-import { PgDialect } from "drizzle-orm/pg-core"
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core"
 import { expect, test } from "vitest"
 import { drawings, folders } from "@/db/schema"
 import { accessibleTo, canAccess, inPrivateSpaceOf } from "./access"
 
 const toSql = (where: SQL) => {
-  const { sql, params } = new PgDialect().sqlToQuery(where)
+  const { sql, params } = new SQLiteSyncDialect().sqlToQuery(where)
   return { sql, params }
 }
 

@@ -4,7 +4,7 @@
 
 import { randomUUID } from "node:crypto"
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm"
-import { alias } from "drizzle-orm/pg-core"
+import { alias } from "drizzle-orm/sqlite-core"
 import type { Db } from "@/db"
 import {
   commentReads,
@@ -97,15 +97,16 @@ async function findWritableThread(db: Db, userId: string, threadId: string) {
 }
 
 /**
- * Holds the thread row until the transaction ends, so a reply and a resolve,
- * or two deletes, can't interleave on one thread.
+ * Reads the thread's state before a write that depends on it. SQLite has no
+ * row lock, so the write that follows is conditional instead — see
+ * `resolveThread` and the delete below — which keeps a reply and a resolve from
+ * interleaving on one thread without holding anything.
  */
-const lockThread = (tx: Pick<Db, "select">, threadId: string) =>
+const readThread = (tx: Pick<Db, "select">, threadId: string) =>
   tx
     .select({ resolvedAt: commentThreads.resolvedAt })
     .from(commentThreads)
     .where(eq(commentThreads.id, threadId))
-    .for("update")
 
 /** A comment `userId` wrote, on an untrashed drawing they can see. */
 async function findOwnComment(db: Db, userId: string, commentId: string) {
@@ -250,23 +251,41 @@ export async function addReply(
   const body = commentBody(input.body)
   const thread = await findWritableThread(db, userId, input.threadId)
   const now = new Date()
-  await db.transaction(async (tx) => {
-    const [locked] = await lockThread(tx, thread.id)
-    if (!locked) throw new Error("Comment not found")
-    if (locked.resolvedAt) throw new Error("Reopen this thread to reply.")
-    await tx.insert(comments).values({
-      id: randomUUID(),
-      threadId: thread.id,
-      authorId: userId,
-      via: input.via ?? null,
-      body,
-      createdAt: now,
-    })
-    await tx
-      .update(commentThreads)
-      .set({ lastActivityAt: now })
-      .where(eq(commentThreads.id, thread.id))
-  })
+
+  // A reply only lands on an open thread. `batch` applies both statements in
+  // one atomic round-trip, and the insert's `where` re-checks the thread is
+  // still open at write time — so a resolve that committed in between makes
+  // the insert match no rows instead of letting a reply slip into a closed
+  // thread. The touch of lastActivityAt follows the same guard.
+  const inserted = await db
+    .insert(comments)
+    .select(
+      db
+        .select({
+          id: sql<string>`${randomUUID()}`.as("id"),
+          threadId: sql<string>`${thread.id}`.as("threadId"),
+          authorId: sql<string>`${userId}`.as("authorId"),
+          via: sql<string | null>`${input.via ?? null}`.as("via"),
+          body: sql<string>`${body}`.as("body"),
+          createdAt: sql<Date>`${now.getTime()}`.as("createdAt"),
+          editedAt: sql<Date | null>`null`.as("editedAt"),
+        })
+        .from(commentThreads)
+        .where(
+          and(
+            eq(commentThreads.id, thread.id),
+            isNull(commentThreads.resolvedAt),
+          ),
+        ),
+    )
+    .returning({ id: comments.id })
+
+  if (inserted.length === 0) throw new Error("Reopen this thread to reply.")
+
+  await db
+    .update(commentThreads)
+    .set({ lastActivityAt: now })
+    .where(eq(commentThreads.id, thread.id))
 }
 
 /** Resolves or reopens a thread. Any member who can see the drawing can. */
@@ -315,19 +334,22 @@ export async function deleteComment(
   commentId: string,
 ): Promise<void> {
   const { threadId } = await findOwnComment(db, userId, commentId)
-  await db.transaction(async (tx) => {
-    // Two last comments deleted at once must not leave an empty thread.
-    await lockThread(tx, threadId)
-    await tx.delete(comments).where(eq(comments.id, commentId))
-    await tx
+
+  // Two last comments deleted at once must not leave an empty thread: the
+  // thread delete's `not exists` is evaluated in the same atomic batch as the
+  // comment delete, so the second caller sees the first's removal and only one
+  // of them can find the thread empty.
+  await db.batch([
+    db.delete(comments).where(eq(comments.id, commentId)),
+    db
       .delete(commentThreads)
       .where(
         and(
           eq(commentThreads.id, threadId),
           sql`not exists (select 1 from ${comments} where ${comments.threadId} = ${threadId})`,
         ),
-      )
-  })
+      ),
+  ] as const)
 }
 
 /** Records that the caller has read a thread up to now. */

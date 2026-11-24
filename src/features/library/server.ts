@@ -90,36 +90,57 @@ export const changeLibrary = createServerFn({ method: "POST" })
       )
 
     let json: string
+    // D1 has no `lock table` and no interactive transaction, so the cap is
+    // checked before the write and re-checked after: `batch` applies the
+    // delete and the insert as one atomic round-trip, and a concurrent add that
+    // pushed the library over is caught by the read that follows, which then
+    // removes what this call added rather than leaving it over the cap.
+    const addedIds = data.add.map((item) => item.id)
     try {
-      json = await db.transaction(async (tx) => {
-        // One change at a time, so concurrent adds can't each fit the cap
-        // alone and pass it together. Plain reads still run.
-        await tx.execute(
-          sql`lock table ${libraryItems} in share row exclusive mode`,
-        )
-        if (data.remove.length > 0)
-          await tx
-            .delete(libraryItems)
-            .where(inArray(libraryItems.id, data.remove))
-        if (data.add.length > 0)
-          await tx
-            .insert(libraryItems)
-            // `add` is newest first; the last row inserted gets the highest seq.
-            .values(
-              [...data.add].reverse().map((item) => ({ id: item.id, item })),
-            )
-            .onConflictDoUpdate({
-              target: libraryItems.id,
-              set: { item: sql`excluded.item` },
-            })
-        const library = await readLibraryJson(tx)
-        if (
-          data.add.length > 0 &&
-          Buffer.byteLength(library) > MAX_LIBRARY_BYTES
-        )
-          throw new LibraryFull()
-        return library
-      })
+      if (data.remove.length > 0 || data.add.length > 0) {
+        const [maxSeq] = await db
+          .select({ seq: sql`coalesce(max(${libraryItems.seq}), 0)` })
+          .from(libraryItems)
+        const base = Number(maxSeq?.seq ?? 0)
+        // `add` is newest first, so the last one gets the highest seq.
+        const rows = [...data.add].reverse().map((item, index) => ({
+          id: item.id,
+          item,
+          // Replacing an existing item keeps its place in the list; only a new
+          // one takes a fresh seq, which is what "newest first" needs.
+          seq: base + index + 1,
+        }))
+
+        const removeQuery =
+          data.remove.length > 0
+            ? db.delete(libraryItems).where(inArray(libraryItems.id, data.remove))
+            : null
+        const insertQuery =
+          rows.length > 0
+            ? db
+                .insert(libraryItems)
+                .values(rows)
+                .onConflictDoUpdate({
+                  target: libraryItems.id,
+                  set: { item: sql`excluded.item` },
+                })
+            : null
+
+        // `batch` needs a non-empty tuple, so the two cases are spelled out.
+        if (removeQuery && insertQuery) await db.batch([removeQuery, insertQuery])
+        else if (removeQuery) await removeQuery
+        else if (insertQuery) await insertQuery
+      }
+
+      json = await readLibraryJson(db)
+      if (data.add.length > 0 && Buffer.byteLength(json) > MAX_LIBRARY_BYTES) {
+        // Undo this call's adds, so a library that was at the cap is not left
+        // over it. Only this call's ids go, never someone else's.
+        await db
+          .delete(libraryItems)
+          .where(inArray(libraryItems.id, addedIds))
+        throw new LibraryFull()
+      }
     } catch (error) {
       if (!(error instanceof LibraryFull)) throw error
       return refusal(

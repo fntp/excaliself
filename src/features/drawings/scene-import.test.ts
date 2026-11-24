@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm"
 import { beforeAll, expect, test } from "vitest"
 import { demoAdmin } from "@/db/demo-content"
 import type { Db } from "@/db/index"
-import { createPreviewDb } from "@/db/preview"
+import { createTestDb } from "@/db/test-db"
 import { drawingFiles, drawings, users } from "@/db/schema"
 import { MAX_DRAWING_IMAGE_BYTES } from "@/features/collab/room-files"
 import { importDrawing, prepareScene, type SceneContent } from "./scene-import"
@@ -69,7 +69,7 @@ test("stores only live images within the budget and marks the rest as errors", (
 
 let db: Db
 beforeAll(async () => {
-  db = await createPreviewDb()
+  db = await createTestDb()
 }, 30_000)
 
 test("a dropped file lands in the folder's space, with its images", async () => {

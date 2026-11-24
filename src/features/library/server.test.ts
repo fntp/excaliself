@@ -27,8 +27,8 @@ vi.mock("@tanstack/react-start", () => {
 })
 vi.mock("@/middleware/auth", () => ({ authMiddleware: {} }))
 vi.mock("@/db", async () => {
-  const { createPreviewDb } = await import("@/db/preview")
-  return { db: await createPreviewDb() }
+  const { createTestDb } = await import("@/db/test-db")
+  return { db: await createTestDb() }
 })
 
 const { db } = await import("@/db")
@@ -86,9 +86,9 @@ test("a library already past its cap still loads in full, and removes still save
   // response could carry once serialized.
   const big = "x".repeat(MAX_LIBRARY_BYTES)
   await db.insert(libraryItems).values([
-    { id: "old-1", item: item("old-1", 0) },
-    { id: "old-2", item: { ...item("old-2", 0), name: big } },
-    { id: "old-3", item: { ...item("old-3", 0), name: big } },
+    { id: "old-1", item: item("old-1", 0), seq: 1 },
+    { id: "old-2", item: { ...item("old-2", 0), name: big }, seq: 2 },
+    { id: "old-3", item: { ...item("old-3", 0), name: big }, seq: 3 },
   ])
   expect(await ids(await getLibrary())).toEqual([
     "old-3",

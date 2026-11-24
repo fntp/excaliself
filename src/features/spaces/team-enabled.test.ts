@@ -1,5 +1,5 @@
 import type { SQL } from "drizzle-orm"
-import { PgDialect } from "drizzle-orm/pg-core"
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core"
 import { expect, test } from "vitest"
 import { drawings, type Space, users } from "@/db/schema"
 import { isTeamEnabled } from "./team-enabled"
@@ -9,7 +9,7 @@ type Row = { space: Space; trashed: boolean }
 // Applies the two conditions the flag can use (space, trashed) to in-memory
 // rows, so the tests assert what the query matches rather than its shape.
 const matches = (where: SQL, row: Row) => {
-  const { sql, params } = new PgDialect().sqlToQuery(where)
+  const { sql, params } = new SQLiteSyncDialect().sqlToQuery(where)
   if (sql.includes('"space" =') && !params.includes(row.space)) return false
   if (sql.includes('"deletedAt" is null') && row.trashed) return false
   return true

@@ -3,7 +3,7 @@ import { eq, inArray } from "drizzle-orm"
 import { beforeAll, expect, test } from "vitest"
 import { demoAdmin } from "@/db/demo-content"
 import type { Db } from "@/db/index"
-import { createPreviewDb } from "@/db/preview"
+import { createTestDb } from "@/db/test-db"
 import {
   drawings,
   folders,
@@ -23,7 +23,7 @@ const member = { id: "member-b", email: "b@example.com", name: "B" }
 
 let db: Db
 beforeAll(async () => {
-  db = await createPreviewDb()
+  db = await createTestDb()
   await db.insert(users).values(member)
 }, 30_000)
 

@@ -89,19 +89,16 @@ export async function deleteUserAccount(
 export async function hardDeleteUser(db: Db, userId: string): Promise<void> {
   await db.transaction(async (tx) => {
     // One locking read over the target and every admin, mirroring
-    // setUserRole's: FOR UPDATE serializes concurrent deletes and role
-    // changes (two admins deleting each other would both read 2 admins and
-    // both succeed), and the id order keeps overlapping transactions from
-    // deadlocking. The target row must be in the locked set even when it
-    // isn't an admin — an unlocked role read can go stale while concurrent
-    // role changes make the target the sole admin, and the delete would
-    // then lock the instance out.
+    // The target row must be in the read set even when it isn't an admin — a
+    // role read that missed it could go stale while a concurrent role change
+    // made the target the sole admin, and the delete would then lock the
+    // instance out. SQLite has no FOR UPDATE; the guard is the recheck after
+    // the delete below, which puts the account back if no admin is left.
     const relevant = await tx
       .select({ id: users.id, role: users.role })
       .from(users)
       .where(or(eq(users.role, "admin"), eq(users.id, userId)))
       .orderBy(users.id)
-      .for("update")
 
     const target = relevant.find((row) => row.id === userId)
     if (!target) {

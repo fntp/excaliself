@@ -1,5 +1,5 @@
 import type { SQL } from "drizzle-orm"
-import { PgDialect } from "drizzle-orm/pg-core"
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core"
 import { expect, test } from "vitest"
 import { drawings } from "@/db/schema"
 import { accessibleTo } from "@/features/spaces/access"
@@ -36,7 +36,7 @@ test("search runs over the access rule's drawings, with trash left out", async (
   expect(seen.table).toBe(drawings)
   if (!seen.where) throw new Error("no where clause")
   expectCondition(seen.where, accessibleTo(drawings, "user-1"))
-  expect(new PgDialect().sqlToQuery(seen.where).sql).toContain(
+  expect(new SQLiteSyncDialect().sqlToQuery(seen.where).sql).toContain(
     `"drawings"."deletedAt" is null`,
   )
 })

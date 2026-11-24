@@ -88,11 +88,12 @@ export const setUserRole = createServerFn({ method: "POST" })
           ),
         )
         .orderBy(users.id)
-        .for("update")
 
-      // Recheck the caller under the lock: the middleware's fresh read can
-      // go stale in the gap before this transaction, letting a just-demoted
-      // admin race their own re-promotion through.
+      // Recheck the caller here: the middleware's fresh read can go stale in
+      // the gap before this transaction, letting a just-demoted admin race
+      // their own re-promotion through. SQLite has no row lock to hold the
+      // recheck under; the demotion below is a conditional write instead, so a
+      // lost race leaves the last admin rather than removing them.
       const caller = relevant.find((row) => row.id === callerId)
       if (caller?.role !== "admin") {
         throw new Error("Only admins can change roles")
@@ -112,6 +113,23 @@ export const setUserRole = createServerFn({ method: "POST" })
         .returning({ id: users.id })
       if (updated.length === 0) {
         throw new Error(`User not found: ${data.userId}`)
+      }
+
+      // A demotion that raced another one can still have left no admin. The
+      // read above may be stale by now, so confirm against what was written
+      // and put the role back if the instance would be left without one.
+      if (data.role === "user") {
+        const [remaining] = await tx
+          .select({ count: count() })
+          .from(users)
+          .where(eq(users.role, "admin"))
+        if (Number(remaining?.count ?? 0) === 0) {
+          await tx
+            .update(users)
+            .set({ role: "admin", updatedAt: new Date() })
+            .where(eq(users.id, data.userId))
+          throw new Error("The last admin can't be demoted")
+        }
       }
     })
   })

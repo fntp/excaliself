@@ -2,7 +2,7 @@
 import { eq } from "drizzle-orm"
 import { beforeAll, expect, test } from "vitest"
 import type { Db } from "@/db/index"
-import { createPreviewDb } from "@/db/preview"
+import { createTestDb } from "@/db/test-db"
 import { drawings, users } from "@/db/schema"
 import { hardDeleteUser } from "@/features/admin/delete-user"
 import { MAX_COMMENT_LENGTH } from "./limits"
@@ -22,7 +22,7 @@ const point = { x: 10, y: 20 }
 
 let db: Db
 beforeAll(async () => {
-  db = await createPreviewDb()
+  db = await createTestDb()
   await db.insert(users).values([ada, bo])
   await db.insert(drawings).values([
     { id: "team", name: "Team", space: "team", createdBy: ada.id },

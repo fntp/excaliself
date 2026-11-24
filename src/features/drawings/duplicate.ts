@@ -7,6 +7,7 @@ import { drawingFiles, drawings } from "@/db/schema"
 import { assertFolderTarget } from "@/features/folders/ownership"
 import { lockFolderTree } from "@/features/folders/tree-lock"
 import { accessibleTo } from "@/features/spaces/access"
+import { copyImage } from "./image-store"
 import { MAX_NAME_LENGTH } from "./list-columns"
 import { sceneText } from "./search"
 
@@ -67,20 +68,40 @@ export async function copyDrawing(
       createdAt: now,
       updatedAt: now,
     })
-    // In SQL, so image bytes never pass through the app
-    await tx.insert(drawingFiles).select(
-      tx
-        .select({
-          id: sql<string>`gen_random_uuid()::text`.as("id"),
-          drawingId: sql<string>`${copyId}`.as("drawingId"),
-          fileId: drawingFiles.fileId,
-          mimeType: drawingFiles.mimeType,
-          bytes: drawingFiles.bytes,
-          createdAt: sql<Date>`now()`.as("createdAt"),
-        })
-        .from(drawingFiles)
-        .where(eq(drawingFiles.drawingId, id)),
-    )
+    // The index rows copy in SQL; the bytes are copied in R2 below, because a
+    // SQL copy can't reach an object store.
+    const sourceFiles = await tx
+      .select({
+        fileId: drawingFiles.fileId,
+        mimeType: drawingFiles.mimeType,
+        size: drawingFiles.size,
+      })
+      .from(drawingFiles)
+      .where(eq(drawingFiles.drawingId, id))
+
+    if (sourceFiles.length > 0) {
+      await tx.insert(drawingFiles).values(
+        sourceFiles.map((file) => ({
+          // SQLite has no gen_random_uuid(), so the id is made here.
+          id: randomUUID(),
+          drawingId: copyId,
+          fileId: file.fileId,
+          mimeType: file.mimeType,
+          size: file.size,
+          etag: null,
+          createdAt: now,
+        })),
+      )
+      // An object copy is server-side and cheaper than a read and a write.
+      await Promise.all(
+        sourceFiles.map((file) =>
+          copyImage({
+            from: { drawingId: id, fileId: file.fileId },
+            to: { drawingId: copyId, fileId: file.fileId },
+          }),
+        ),
+      )
+    }
     return { id: copyId, name }
   })
 }

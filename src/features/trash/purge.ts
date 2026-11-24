@@ -86,7 +86,6 @@ export async function purgeExpiredTrash(
         deletedAt: folders.deletedAt,
       })
       .from(folders)
-      .for("update")
     const { expiredIds, reparentIds } = splitExpiredFolders(folderRows, cutoff)
 
     if (reparentIds.length > 0) {

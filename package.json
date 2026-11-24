@@ -65,6 +65,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
+    "@cloudflare/workers-types": "^5.20261123.1",
     "@inlang/cli": "3.6.0",
     "@inlang/paraglide-js": "3.2.2",
     "@inlang/plugin-m-function-matcher": "2.4.3",
@@ -86,6 +87,7 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
     "vitest": "^5.0.3",
-    "web-vitals": "^5.3.0"
+    "web-vitals": "^5.3.0",
+    "wrangler": "^4.166.0"
   }
 }

@@ -1,5 +1,5 @@
 import type { SQL } from "drizzle-orm"
-import { PgDialect } from "drizzle-orm/pg-core"
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core"
 import { expect, test } from "vitest"
 import { loadRoomFile, saveRoomFile } from "./room-file-store"
 import { MAX_DRAWING_IMAGE_BYTES } from "./room-files"
@@ -10,7 +10,7 @@ type Call =
   | { kind: "insert"; values: Record<string, unknown> }
 
 /** Renders a captured drizzle condition, so room scoping is assertable. */
-const toSql = (where: SQL) => new PgDialect().sqlToQuery(where).sql
+const toSql = (where: SQL) => new SQLiteSyncDialect().sqlToQuery(where).sql
 
 const FILE = {
   fileId: "file-1",

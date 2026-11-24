@@ -43,8 +43,8 @@ vi.mock("@/features/collab/room-registry", async () => {
 })
 // The real better-auth over the real migrations.
 vi.mock("@/db", async () => {
-  const { createPreviewDb } = await import("@/db/preview")
-  return { db: await createPreviewDb() }
+  const { createTestDb } = await import("@/db/test-db")
+  return { db: await createTestDb() }
 })
 
 const { db } = await import("@/db")

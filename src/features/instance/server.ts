@@ -20,17 +20,14 @@ export const getInstanceStats = createServerFn({ method: "GET" })
       .where(isNull(drawings.deletedAt))
     const [sceneBytes] = await db
       .select({
-        value: sql`coalesce(sum(octet_length(${drawings.data})), 0)`.mapWith(
-          Number,
-        ),
+        // SQLite spells the byte length `length`, not `octet_length`.
+        value: sql`coalesce(sum(length(${drawings.data})), 0)`.mapWith(Number),
       })
       .from(drawings)
     const [fileBytes] = await db
       .select({
-        value:
-          sql`coalesce(sum(octet_length(${drawingFiles.bytes})), 0)`.mapWith(
-            Number,
-          ),
+        // Image sizes are in the index rows, so this never reads R2.
+        value: sql`coalesce(sum(${drawingFiles.size}), 0)`.mapWith(Number),
       })
       .from(drawingFiles)
 

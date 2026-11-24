@@ -1,5 +1,5 @@
 import type { SQL } from "drizzle-orm"
-import { PgDialect } from "drizzle-orm/pg-core"
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core"
 import { expect, test } from "vitest"
 import { drawings, folders, shareRedirects, shares } from "@/db/schema"
 import { inPrivateSpaceOf } from "./access"
@@ -11,7 +11,7 @@ type Write =
   | { kind: "update"; table: unknown; set: Row; where: SQL }
   | { kind: "delete"; table: unknown; where: SQL }
 
-const toSql = (where: SQL) => new PgDialect().sqlToQuery(where)
+const toSql = (where: SQL) => new SQLiteSyncDialect().sqlToQuery(where)
 
 /**
  * Each select on a table returns the next of `selects[table]`: what the

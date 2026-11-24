@@ -2,11 +2,11 @@
 // the access rule. Placeholders are renumbered when the condition is nested.
 
 import type { SQL } from "drizzle-orm"
-import { PgDialect } from "drizzle-orm/pg-core"
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core"
 import { expect } from "vitest"
 
 const render = (where: SQL) => {
-  const { sql, params } = new PgDialect().sqlToQuery(where)
+  const { sql, params } = new SQLiteSyncDialect().sqlToQuery(where)
   return { sql: sql.replace(/\$\d+/g, "$"), params }
 }
 

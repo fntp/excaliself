@@ -40,8 +40,8 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/middleware/admin", () => ({ adminMiddleware: {} }))
 
 vi.mock("@/db", async () => {
-  const { createPreviewDb } = await import("@/db/preview")
-  return { db: await createPreviewDb() }
+  const { createTestDb } = await import("@/db/test-db")
+  return { db: await createTestDb() }
 })
 
 const { db } = await import("@/db")

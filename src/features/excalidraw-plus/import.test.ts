@@ -3,7 +3,7 @@ import { eq, isNotNull } from "drizzle-orm"
 import { beforeAll, expect, test } from "vitest"
 import { demoAdmin } from "@/db/demo-content"
 import type { Db } from "@/db/index"
-import { createPreviewDb } from "@/db/preview"
+import { createTestDb } from "@/db/test-db"
 import { drawingFiles, drawings, folders, stars, users } from "@/db/schema"
 import type { SceneContent } from "@/features/drawings/scene-import"
 import { type ImportScene, importScene } from "./import"
@@ -38,7 +38,7 @@ const scene = (id: string, collection: ImportScene["collection"]) => ({
 
 let db: Db
 beforeAll(async () => {
-  db = await createPreviewDb()
+  db = await createTestDb()
 }, 30_000)
 
 test("imports into one folder per collection and skips what is already here", async () => {
@@ -95,7 +95,9 @@ test("imports into one folder per collection and skips what is already here", as
     .from(drawingFiles)
     .where(eq(drawingFiles.drawingId, bySource("Scene s1")[0].id))
   expect(file.mimeType).toBe("image/png")
-  expect(Buffer.from(file.bytes).toString()).toBe("png-bytes")
+  // The bytes live in R2 now; the row indexes them by size. The import test
+  // runs without an R2 binding, so this checks the index, not the object.
+  expect(file.size).toBe(Buffer.byteLength("png-bytes"))
 
   const starred = await db
     .select({ drawingId: stars.drawingId })

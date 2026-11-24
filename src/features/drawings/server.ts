@@ -16,6 +16,7 @@ import { listsChangedMiddleware } from "@/middleware/lists-changed"
 import { insertDrawing } from "./create"
 import { copyDrawing } from "./duplicate"
 import { bytesToDataUrl } from "./file-bytes"
+import { readDrawingImages } from "./image-store"
 import { listDrawings } from "./list"
 import { drawingColumns, MAX_NAME_LENGTH } from "./list-columns"
 import { importDrawing, sceneContentSchema } from "./scene-import"
@@ -61,18 +62,29 @@ export const getDrawingWithFiles = createServerFn({ method: "GET" })
       .select({
         fileId: drawingFiles.fileId,
         mimeType: drawingFiles.mimeType,
-        bytes: drawingFiles.bytes,
         createdAt: drawingFiles.createdAt,
       })
       .from(drawingFiles)
       .where(eq(drawingFiles.drawingId, id))
 
+    // The bytes are in R2; the rows only say which ones exist.
+    const images = await readDrawingImages(
+      id,
+      files.map((file) => file.fileId),
+    )
     return {
       ...drawing,
-      files: files.map(({ bytes, ...file }) => ({
-        ...file,
-        dataUrl: bytesToDataUrl(file.mimeType, bytes),
-      })),
+      files: files.flatMap((file) => {
+        const bytes = images.get(file.fileId)
+        // A row without its object is a leftover; skip it rather than 500.
+        if (!bytes) return []
+        return [
+          {
+            ...file,
+            dataUrl: bytesToDataUrl(file.mimeType, Buffer.from(bytes)),
+          },
+        ]
+      }),
     }
   })
 

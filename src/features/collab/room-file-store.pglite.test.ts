@@ -1,14 +1,14 @@
 // @vitest-environment node
 import { eq } from "drizzle-orm"
 import { expect, test } from "vitest"
-import { createPreviewDb } from "@/db/preview"
+import { createTestDb } from "@/db/test-db"
 import { drawingFiles, drawings } from "@/db/schema"
 import { saveRoomFile, storedImageBytes } from "./room-file-store"
 import { MAX_DRAWING_IMAGE_BYTES, MAX_IMAGE_BYTES } from "./room-files"
 
 // A guest can fire many uploads at once; together they must still fit the cap.
 test("parallel uploads never take a drawing over its image cap", async () => {
-  const db = await createPreviewDb()
+  const db = await createTestDb()
   const [drawing] = await db.select({ id: drawings.id }).from(drawings).limit(1)
   await db.delete(drawingFiles).where(eq(drawingFiles.drawingId, drawing.id))
   const dataUrl = `data:image/png;base64,${Buffer.alloc(MAX_IMAGE_BYTES).toString("base64")}`

@@ -1,5 +1,5 @@
 import type { SQL } from "drizzle-orm"
-import { PgDialect } from "drizzle-orm/pg-core"
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core"
 import { expect, test } from "vitest"
 import { drawingFiles, drawings, type Space } from "@/db/schema"
 import { MAX_DRAWING_IMAGE_BYTES } from "@/features/collab/room-files"
@@ -13,8 +13,8 @@ type Call =
   | { kind: "insert"; table: unknown; values: Record<string, unknown>[] }
   | { kind: "delete"; table: unknown; where: SQL }
 
-const toSql = (where: SQL) => new PgDialect().sqlToQuery(where).sql
-const toParams = (where: SQL) => new PgDialect().sqlToQuery(where).params
+const toSql = (where: SQL) => new SQLiteSyncDialect().sqlToQuery(where).sql
+const toParams = (where: SQL) => new SQLiteSyncDialect().sqlToQuery(where).params
 
 const SCENE = '{"elements":[]}'
 

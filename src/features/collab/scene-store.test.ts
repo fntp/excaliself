@@ -1,5 +1,5 @@
 import type { SQL } from "drizzle-orm"
-import { PgDialect } from "drizzle-orm/pg-core"
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core"
 import { afterEach, expect, test, vi } from "vitest"
 import { drawingFiles } from "@/db/schema"
 import type { SceneElement } from "./protocol"
@@ -151,7 +151,7 @@ test("saveRoomScene writes the merged scene and bumps updatedAt", async () => {
   })
   // A collaborative edit is an edit: the drawing has to surface as Recent.
   expect(update.set.updatedAt).toBeInstanceOf(Date)
-  expect(new PgDialect().sqlToQuery(update.where).sql).toContain(
+  expect(new SQLiteSyncDialect().sqlToQuery(update.where).sql).toContain(
     `"drawings"."id" =`,
   )
 })
@@ -172,7 +172,7 @@ test("saveRoomScene is not blocked by the trash — a trashed drawing keeps the 
   // §5.1: trashing mid-session ends with a final flush so guest work up to
   // that moment comes back with the drawing on restore.
   const select = calls[0] as Extract<SaveCall, { kind: "select" }>
-  expect(new PgDialect().sqlToQuery(select.where).sql).not.toContain(
+  expect(new SQLiteSyncDialect().sqlToQuery(select.where).sql).not.toContain(
     "deletedAt",
   )
   expect(calls.map((call) => call.kind)).toEqual(["select", "update", "delete"])
@@ -201,7 +201,7 @@ async function flushDelete(elements: SceneElement[]) {
   const remove = calls.find((call) => call.kind === "delete")
   if (remove?.kind !== "delete") throw new Error("no delete")
   expect(remove.table).toBe(drawingFiles)
-  return new PgDialect().sqlToQuery(remove.where)
+  return new SQLiteSyncDialect().sqlToQuery(remove.where)
 }
 
 test("a flush drops this drawing's old image rows that no image uses", async () => {

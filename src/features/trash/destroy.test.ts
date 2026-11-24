@@ -1,5 +1,5 @@
 import type { SQL } from "drizzle-orm"
-import { PgDialect } from "drizzle-orm/pg-core"
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core"
 import { expect, test } from "vitest"
 import { drawings, folders } from "@/db/schema"
 import { accessibleTo } from "@/features/spaces/access"
@@ -18,7 +18,7 @@ type Call =
 
 // Renders a captured drizzle condition so tests can assert what the SQL
 // actually matches (the crux of the cascade-evacuation fix).
-const toSql = (where: SQL) => new PgDialect().sqlToQuery(where)
+const toSql = (where: SQL) => new SQLiteSyncDialect().sqlToQuery(where)
 
 function fakeDb(options: {
   unitFolderIds?: string[]

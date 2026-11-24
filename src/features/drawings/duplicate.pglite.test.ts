@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm"
 import { beforeAll, expect, test } from "vitest"
 import { demoAdmin } from "@/db/demo-content"
 import type { Db } from "@/db/index"
-import { createPreviewDb } from "@/db/preview"
+import { createTestDb } from "@/db/test-db"
 import { drawingFiles, drawings, folders, users } from "@/db/schema"
 import { copyDrawing, copyName } from "./duplicate"
 import { MAX_NAME_LENGTH } from "./list-columns"
@@ -12,7 +12,7 @@ const member = { id: "member-d", email: "d@example.com", name: "D" }
 
 let db: Db
 beforeAll(async () => {
-  db = await createPreviewDb()
+  db = await createTestDb()
   await db.insert(users).values(member)
   await db.insert(folders).values({
     id: "team-folder",
@@ -45,7 +45,7 @@ beforeAll(async () => {
     drawingId: "source",
     fileId: "img",
     mimeType: "image/png",
-    bytes: Buffer.from([1, 2, 3]),
+    size: 3,
   })
 }, 30_000)
 
@@ -54,7 +54,7 @@ const row = async (id: string) =>
 
 const files = (drawingId: string) =>
   db
-    .select({ fileId: drawingFiles.fileId, bytes: drawingFiles.bytes })
+    .select({ fileId: drawingFiles.fileId, size: drawingFiles.size })
     .from(drawingFiles)
     .where(eq(drawingFiles.drawingId, drawingId))
 

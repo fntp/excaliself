@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm"
 import { beforeAll, expect, test } from "vitest"
 import { demoAdmin } from "@/db/demo-content"
 import type { Db } from "@/db/index"
-import { createPreviewDb } from "@/db/preview"
+import { createTestDb } from "@/db/test-db"
 import { drawings, folders, users } from "@/db/schema"
 import { updateDrawingFields } from "@/features/drawings/update"
 import { insertFolder } from "./create"
@@ -13,7 +13,7 @@ const member = { id: "member-b", email: "b@example.com", name: "B" }
 
 let db: Db
 beforeAll(async () => {
-  db = await createPreviewDb()
+  db = await createTestDb()
   await db.insert(users).values(member)
   await db.insert(folders).values([
     { id: "team-folder", name: "Team", space: "team", createdBy: member.id },

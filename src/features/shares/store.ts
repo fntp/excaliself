@@ -11,6 +11,7 @@ import {
   shares,
 } from "@/db/schema"
 import { bytesToDataUrl } from "@/features/drawings/file-bytes"
+import { readDrawingImages } from "@/features/drawings/image-store"
 import { referencedFileIds } from "@/features/drawings/scene-write"
 import { accessibleTo } from "@/features/spaces/access"
 import { resolveShareAccess, type ShareAudience } from "./access"
@@ -24,7 +25,7 @@ export function mintShareToken() {
 // probed. Inside a transaction, the share lock makes a concurrent move to Team
 // wait for this write, or makes this read see the moved row.
 async function requireAccessibleLiveDrawing(
-  db: Db,
+  db: Pick<Db, "select">,
   userId: string,
   drawingId: string,
 ) {
@@ -38,7 +39,6 @@ async function requireAccessibleLiveDrawing(
         isNull(drawings.deletedAt),
       ),
     )
-    .for("share")
   if (!drawing) throw new Error("Drawing not found")
   return drawing
 }
@@ -236,10 +236,17 @@ export async function resolveShareVisit(
     .select({
       fileId: drawingFiles.fileId,
       mimeType: drawingFiles.mimeType,
-      bytes: drawingFiles.bytes,
     })
     .from(drawingFiles)
     .where(eq(drawingFiles.drawingId, resolved.drawing.id))
+
+  const wanted = files.filter(
+    (file) => !live || live.fileIds.has(file.fileId),
+  )
+  const images = await readDrawingImages(
+    resolved.drawing.id,
+    wanted.map((file) => file.fileId),
+  )
 
   return {
     status: "ok",
@@ -249,11 +256,16 @@ export async function resolveShareVisit(
       name: resolved.drawing.name,
       data: live?.data ?? resolved.drawing.data,
     },
-    files: files
-      .filter((file) => !live || live.fileIds.has(file.fileId))
-      .map(({ bytes, ...file }) => ({
-        ...file,
-        dataUrl: bytesToDataUrl(file.mimeType, bytes),
-      })),
+    files: wanted.flatMap((file) => {
+      const bytes = images.get(file.fileId)
+      // A row without its object is a leftover; skip it rather than 500.
+      if (!bytes) return []
+      return [
+        {
+          ...file,
+          dataUrl: bytesToDataUrl(file.mimeType, Buffer.from(bytes)),
+        },
+      ]
+    }),
   }
 }

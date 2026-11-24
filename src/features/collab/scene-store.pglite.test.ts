@@ -1,13 +1,13 @@
 // @vitest-environment node
 import { eq } from "drizzle-orm"
 import { expect, test } from "vitest"
-import { createPreviewDb } from "@/db/preview"
+import { createTestDb } from "@/db/test-db"
 import { drawings } from "@/db/schema"
 import { saveRoomScene } from "./scene-store"
 
 // Postgres text refuses U+0000, so one in a guest's text failed every flush.
 test("saveRoomScene stores a text element that holds U+0000", async () => {
-  const db = await createPreviewDb()
+  const db = await createTestDb()
   const [drawing] = await db.select({ id: drawings.id }).from(drawings).limit(1)
 
   await saveRoomScene(db, drawing.id, [

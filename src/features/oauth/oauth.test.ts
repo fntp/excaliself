@@ -3,7 +3,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto"
 import { eq } from "drizzle-orm"
 import { beforeAll, expect, test, vi } from "vitest"
 import type { Db } from "@/db"
-import { createPreviewDb } from "@/db/preview"
+import { createTestDb } from "@/db/test-db"
 import { users } from "@/db/schema"
 import { checkAuthorizeRequest } from "./authorize"
 import {
@@ -22,7 +22,7 @@ const CALLBACK = "https://claude.ai/api/mcp/auth_callback"
 
 let db: Db
 beforeAll(async () => {
-  db = await createPreviewDb()
+  db = await createTestDb()
 }, 30_000)
 
 async function addMember() {

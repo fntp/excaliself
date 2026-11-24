@@ -2,7 +2,7 @@
 import { beforeAll, expect, test } from "vitest"
 import { demoAdmin } from "@/db/demo-content"
 import type { Db } from "@/db/index"
-import { createPreviewDb } from "@/db/preview"
+import { createTestDb } from "@/db/test-db"
 import { drawingFiles, drawings } from "@/db/schema"
 import { createShareLink, resolveShareVisit } from "@/features/shares/store"
 import type { ServerMessage } from "./protocol"
@@ -20,7 +20,7 @@ const DAY = 24 * 60 * 60 * 1000
 
 let db: Db
 beforeAll(async () => {
-  db = await createPreviewDb()
+  db = await createTestDb()
 }, 30_000)
 
 const deletedText = (id: string, updated: number) => ({
