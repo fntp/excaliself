@@ -13,5 +13,6 @@ count.txt
 todos.json
 data/
 .claude
+.codebuddy/
 .scratch/
 .worktrees/

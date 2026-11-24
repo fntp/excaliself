@@ -380,7 +380,7 @@ export async function countOpenThreads(
   drawingId: string,
 ): Promise<number> {
   const [row] = await db
-    .select({ count: sql<number>`count(*)::int` })
+    .select({ count: sql<number>`count(*)` })
     .from(commentThreads)
     .where(
       and(

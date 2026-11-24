@@ -1,7 +1,7 @@
 // Share-link persistence, kept out of server.ts so tests can use a fake db.
 
 import { randomBytes, randomUUID } from "node:crypto"
-import { and, eq, isNull } from "drizzle-orm"
+import { and, eq, isNull, sql } from "drizzle-orm"
 import type { Db } from "@/db"
 import {
   drawingFiles,
@@ -71,26 +71,46 @@ export async function createShareLink(
   drawingId: string,
   audience: ShareAudience,
 ) {
-  // One transaction with the space check, so a move to Team can't slip in
-  // between and leave a Team drawing with a members link.
-  const created = await db.transaction(async (tx) => {
-    const { space } = await requireAccessibleLiveDrawing(tx, userId, drawingId)
-    requireAudienceFits(space, audience)
-    const [row] = await tx
-      .insert(shares)
-      .values({
-        id: randomUUID(),
-        token: mintShareToken(),
-        drawingId,
-        audience,
-        createdAt: new Date(),
-      })
-      .onConflictDoNothing({ target: shares.drawingId })
-      .returning(shareColumns)
-    return row
-  })
-  // Return an existing link unchanged: only setShareLinkAudience evicts guests.
-  return created ?? getShareLink(db, userId, drawingId)
+  const { space } = await requireAccessibleLiveDrawing(db, userId, drawingId)
+  requireAudienceFits(space, audience)
+
+  // The audience rule is stated again in the insert's `where`: a Team drawing
+  // takes only a guest link, so a move to Team between the check above and this
+  // write cannot leave a members link behind. The insert selects from the
+  // drawing row, so it writes nothing when that row no longer matches.
+  const created = await db
+    .insert(shares)
+    .select((qb) =>
+      qb
+        .select({
+          id: sql<string>`${randomUUID()}`.as("id"),
+          token: sql<string>`${mintShareToken()}`.as("token"),
+          drawingId: sql<string>`${drawings.id}`.as("drawingId"),
+          audience: sql<ShareAudience>`${audience}`.as("audience"),
+          createdAt: sql<number>`${Date.now()}`.as("createdAt"),
+        })
+        .from(drawings)
+        .where(
+          and(
+            eq(drawings.id, drawingId),
+            accessibleTo(drawings, userId),
+            isNull(drawings.deletedAt),
+            audience === "anyone" ? undefined : sql`${drawings.space} <> 'team'`,
+          ),
+        ),
+    )
+    .onConflictDoNothing({ target: shares.drawingId })
+    .returning({ drawingId: shares.drawingId })
+
+  // No row written means the link already existed or the drawing stopped
+  // qualifying. An existing link comes back unchanged; a vanished drawing is
+  // an error.
+  if (created.length === 0) {
+    const existing = await getShareLink(db, userId, drawingId)
+    if (existing) return existing
+    throw new Error("Drawing not found")
+  }
+  return getShareLink(db, userId, drawingId)
 }
 
 export async function stopSharingDrawing(
@@ -123,15 +143,22 @@ export async function setShareLinkAudience(
   drawingId: string,
   audience: ShareAudience,
 ) {
-  const updated = await db.transaction(async (tx) => {
-    const { space } = await requireAccessibleLiveDrawing(tx, userId, drawingId)
-    requireAudienceFits(space, audience)
-    return tx
-      .update(shares)
-      .set({ audience })
-      .where(eq(shares.drawingId, drawingId))
-      .returning(shareColumns)
-  })
+  const { space } = await requireAccessibleLiveDrawing(db, userId, drawingId)
+  requireAudienceFits(space, audience)
+
+  // Same rule as createShareLink: the `exists` re-reads the drawing inside the
+  // update, so a move to Team in the gap cannot turn a members link into an
+  // illegal one. Zero rows then means the link or the drawing is gone.
+  const updated = await db
+    .update(shares)
+    .set({ audience })
+    .where(
+      and(
+        eq(shares.drawingId, drawingId),
+        sql`exists (select 1 from ${drawings} where ${drawings.id} = ${drawingId} and ${accessibleTo(drawings, userId)} and ${drawings.deletedAt} is null and (${audience} = 'anyone' or ${drawings.space} <> 'team'))`,
+      ),
+    )
+    .returning(shareColumns)
   if (updated.length === 0) throw new Error("Share not found")
   return updated[0]
 }

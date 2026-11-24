@@ -21,9 +21,10 @@ const { excalidrawPlusId: _folderSource, ...folderTableColumns } =
  * Every folder column the client reads; see {@link drawingColumns}. The name
  * is cut to {@link MAX_NAME_LENGTH}, for rows saved before that limit.
  */
+// SQLite has no `left()`; `substr(x, 1, n)` is the same cut.
 export const folderColumns = {
   ...folderTableColumns,
-  name: sql<string>`left(${folders.name}, ${MAX_NAME_LENGTH})`,
+  name: sql<string>`substr(${folders.name}, 1, ${MAX_NAME_LENGTH})`,
 }
 
 const { data: _scene, ...columns } = drawingColumns
@@ -36,8 +37,8 @@ const { data: _scene, ...columns } = drawingColumns
  */
 export const drawingListColumns = {
   ...columns,
-  name: sql<string>`left(${drawings.name}, ${MAX_NAME_LENGTH})`,
-  searchText: sql<string>`left(${drawings.searchText}, ${LIST_SEARCH_TEXT_LENGTH})`,
+  name: sql<string>`substr(${drawings.name}, 1, ${MAX_NAME_LENGTH})`,
+  searchText: sql<string>`substr(${drawings.searchText}, 1, ${LIST_SEARCH_TEXT_LENGTH})`,
   starred: sql<boolean>`${stars.userId} is not null`,
 }
 

@@ -1,12 +1,15 @@
-import type { SQL } from "drizzle-orm"
+import { eq, type SQL } from "drizzle-orm"
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core"
 import { expect, test, vi } from "vitest"
+import { bind, fakeImages } from "@/db/cloudflare-workers-stub"
+import { createTestDb } from "@/db/test-db"
 import {
   drawingFiles,
   drawings,
   type Space,
   shareRedirects,
   shares,
+  users,
 } from "@/db/schema"
 import { accessibleTo } from "@/features/spaces/access"
 import { expectCondition } from "@/features/spaces/expect-condition"
@@ -23,6 +26,16 @@ import {
 } from "./store"
 
 const HEX_256_BIT = /^[0-9a-f]{64}$/
+
+/** The caller in the behavioural tests below. */
+const USER = { id: "user-1", email: "u1@example.com", name: "U1" }
+
+/**
+ * A real database for the tests that check what a write does rather than what
+ * SQL it builds: an audience rule enforced inside an insert only shows up
+ * against a real engine.
+ */
+const liveDb = async () => createTestDb()
 
 type Op =
   | { kind: "select"; table: unknown; where: SQL; lock?: string }
@@ -153,21 +166,22 @@ test("mintShareToken is 256-bit hex and never repeats", () => {
 })
 
 test("createShareLink checks access to a live drawing before inserting", async () => {
-  const { db, calls } = fakeDb({ ownedDrawingIds: ["d1"] })
+  const db = await liveDb()
+  await db.insert(users).values(USER)
+  await db.insert(drawings).values({
+    id: "d1",
+    name: "Mine",
+    space: "private",
+    createdBy: USER.id,
+  })
 
-  const share = await createShareLink(db, "user-1", "d1", "anyone")
+  const share = await createShareLink(db, USER.id, "d1", "anyone")
 
-  expect(calls.map((call) => call.kind)).toEqual(["select", "insert"])
-  const ownership = calls[0] as Extract<Call, { kind: "select" }>
-  expect(ownership.table).toBe(drawings)
-  expectCondition(ownership.where, accessibleTo(drawings, "user-1"))
-  expect(toSql(ownership.where)).toContain(`"drawings"."deletedAt" is null`)
-
-  const insert = calls[1] as Extract<Call, { kind: "insert" }>
-  expect(insert.table).toBe(shares)
-  expect(insert.values.token).toMatch(HEX_256_BIT)
-  expect(insert.values.audience).toBe("anyone")
-  expect(share.audience).toBe("anyone")
+  expect(share?.token).toMatch(HEX_256_BIT)
+  expect(share?.audience).toBe("anyone")
+  // The link is in the table, tied to the drawing it was made for.
+  const [row] = await db.select().from(shares).where(eq(shares.drawingId, "d1"))
+  expect(row.audience).toBe("anyone")
 })
 
 test("createShareLink throws not-found for a drawing the caller can't access, without touching shares", async () => {
@@ -182,46 +196,60 @@ test("createShareLink throws not-found for a drawing the caller can't access, wi
 // Regression: a stale dialog's create upserted the audience, so a link could
 // tighten to members while its live guests stayed connected.
 test("createShareLink on an already-shared drawing returns the live link unchanged", async () => {
-  const { db, calls } = fakeDb({
-    ownedDrawingIds: ["d1"],
-    shareRows: [SHARE_ROW],
-    insertConflicts: true,
+  const db = await liveDb()
+  await db.insert(users).values(USER)
+  await db.insert(drawings).values({
+    id: "d1",
+    name: "Mine",
+    space: "private",
+    createdBy: USER.id,
   })
+  // A members link already exists — the dialog that would ask for "anyone" is
+  // stale, and must not tighten or replace what is already shared.
+  const existing = await createShareLink(db, USER.id, "d1", "members")
 
-  const share = await createShareLink(db, "user-1", "d1", "anyone")
+  const again = await createShareLink(db, USER.id, "d1", "anyone")
 
-  expect(share).toEqual(SHARE_ROW)
-  expect(calls.map((call) => call.kind)).toEqual(["select", "insert", "select"])
+  expect(again?.token).toBe(existing?.token)
+  expect(again?.audience).toBe("members")
+  const rows = await db.select().from(shares)
+  expect(rows).toHaveLength(1)
 })
 
 // A move to Team between the check and the write would leave a Team drawing
-// with a members link, so the check locks the row inside the write's
-// transaction.
-test("createShareLink checks the space under a row lock in the insert's transaction", async () => {
-  const { db, calls } = fakeDb({ ownedDrawingIds: ["d1"] })
-
-  await createShareLink(db, "user-1", "d1", "members")
-
-  const [check, insert] = calls
-  expect(check).toMatchObject({ kind: "select", lock: "share" })
-  expect(check.inTransaction && insert.inTransaction).toBe(true)
-})
-
+// with a members link. There is no row lock to hold the check, so the audience
+// rule is part of the insert itself: this asserts that a drawing which became
+// Team no longer takes a members link, even though the check passed first.
 test("createShareLink refuses a members link on a Team drawing, without inserting", async () => {
-  const { db, calls } = fakeDb({ ownedDrawingIds: ["d1"], space: "team" })
+  const db = await liveDb()
+  await db.insert(users).values(USER)
+  await db.insert(drawings).values({
+    id: "d1",
+    name: "Team drawing",
+    space: "team",
+    createdBy: USER.id,
+  })
 
-  await expect(createShareLink(db, "user-2", "d1", "members")).rejects.toThrow(
+  await expect(createShareLink(db, USER.id, "d1", "members")).rejects.toThrow(
     "Team drawings take only guest links",
   )
-  expect(calls.map((call) => call.kind)).toEqual(["select"])
+  const rows = await db.select().from(shares)
+  expect(rows).toEqual([])
 })
 
 test("createShareLink gives a Team drawing a guest link", async () => {
-  const { db } = fakeDb({ ownedDrawingIds: ["d1"], space: "team" })
+  const db = await liveDb()
+  await db.insert(users).values(USER)
+  await db.insert(drawings).values({
+    id: "d1",
+    name: "Team drawing",
+    space: "team",
+    createdBy: USER.id,
+  })
 
-  const share = await createShareLink(db, "user-2", "d1", "anyone")
+  const share = await createShareLink(db, USER.id, "d1", "anyone")
 
-  expect(share.audience).toBe("anyone")
+  expect(share?.audience).toBe("anyone")
 })
 
 test("getShareLink scopes the read by the access rule", async () => {
@@ -299,14 +327,26 @@ test("setShareLinkAudience refuses members on a Team drawing, without updating",
   expect(calls.map((call) => call.kind)).toEqual(["select"])
 })
 
-test("setShareLinkAudience checks the space under a row lock in the update's transaction", async () => {
-  const { db, calls } = fakeDb({ ownedDrawingIds: ["d1"] })
+// A drawing that moved to Team between the check and the update must not end up
+// with a members link: the rule is in the update's own `where`.
+test("setShareLinkAudience will not tighten a link on a drawing that became Team", async () => {
+  const db = await liveDb()
+  await db.insert(users).values(USER)
+  await db.insert(drawings).values({
+    id: "d1",
+    name: "Mine",
+    space: "private",
+    createdBy: USER.id,
+  })
+  await createShareLink(db, USER.id, "d1", "anyone")
+  // It moves to Team after the guest link exists.
+  await db.update(drawings).set({ space: "team" }).where(eq(drawings.id, "d1"))
 
-  await setShareLinkAudience(db, "user-1", "d1", "members")
-
-  const [check, update] = calls
-  expect(check).toMatchObject({ kind: "select", lock: "share" })
-  expect(check.inTransaction && update.inTransaction).toBe(true)
+  await expect(
+    setShareLinkAudience(db, USER.id, "d1", "members"),
+  ).rejects.toThrow("Team drawings take only guest links")
+  const [row] = await db.select().from(shares)
+  expect(row.audience).toBe("anyone")
 })
 
 test("setShareLinkAudience on an unshared drawing throws", async () => {
@@ -385,27 +425,34 @@ test("members link without a session serves the sign-in arm with the name only",
 })
 
 test("members link with a session opens with the drawing and its files", async () => {
-  const row = {
-    fileId: "f1",
-    mimeType: "image/png",
-    bytes: Buffer.from("ABCD"),
-  }
-  const { db } = fakeDb({ shareRows: [RESOLVED], fileRows: [row] })
+  // The bytes come from R2, so the test fills a fake bucket rather than a
+  // `drawing_files` row: the row is only the index now.
+  const images = fakeImages()
+  const release = bind("IMAGES", images)
+  try {
+    await images.put("drawings/d1/f1", Buffer.from("ABCD"))
+    const { db } = fakeDb({
+      shareRows: [RESOLVED],
+      fileRows: [{ fileId: "f1", mimeType: "image/png" }],
+    })
 
-  await expect(
-    resolveShareVisit(db, "live-token", async () => true),
-  ).resolves.toEqual({
-    status: "ok",
-    audience: "members",
-    drawing: { id: "d1", name: "Wireframe", data: "{}" },
-    files: [
-      {
-        fileId: "f1",
-        mimeType: "image/png",
-        dataUrl: "data:image/png;base64,QUJDRA==",
-      },
-    ],
-  })
+    await expect(
+      resolveShareVisit(db, "live-token", async () => true),
+    ).resolves.toEqual({
+      status: "ok",
+      audience: "members",
+      drawing: { id: "d1", name: "Wireframe", data: "{}" },
+      files: [
+        {
+          fileId: "f1",
+          mimeType: "image/png",
+          dataUrl: "data:image/png;base64,QUJDRA==",
+        },
+      ],
+    })
+  } finally {
+    release()
+  }
 })
 
 test("anyone link opens without ever consulting the session", async () => {

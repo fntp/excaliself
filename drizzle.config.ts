@@ -1,17 +1,10 @@
-import { config } from "dotenv"
 import { defineConfig } from "drizzle-kit"
 
-config({ path: [".env.local", ".env"] })
-
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL is not set")
-}
-
+// D1 is SQLite, so migrations are generated for SQLite. No credentials are
+// needed here: `drizzle-kit generate` reads schema.ts and writes SQL, and
+// `wrangler d1 migrations apply` is what runs it against a real database.
 export default defineConfig({
   schema: "./src/db/schema.ts",
   out: "./drizzle",
-  dialect: "postgresql",
-  dbCredentials: {
-    url: process.env.DATABASE_URL,
-  },
+  dialect: "sqlite",
 })

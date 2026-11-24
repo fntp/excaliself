@@ -28,12 +28,14 @@ const libraryItem = z.custom<LibraryItem>(
   (value) => libraryItemShape.safeParse(value).success,
 )
 
-// The library as one JSON array, newest first, built from Postgres' own text.
+// The library as one JSON array, newest first, built from the stored text.
 // Sent raw: Start's serializer fails past 32 MiB of its output, which a
 // library well under that can reach, and then no member could load it.
 const readLibraryJson = async (from: Pick<Db, "select">) => {
+  // `item` is a text column holding JSON, so SQL cast syntax (`::text`) does
+  // not apply; the column is already the string this needs.
   const rows = await from
-    .select({ json: sql<string>`${libraryItems.item}::text` })
+    .select({ json: libraryItems.item })
     .from(libraryItems)
     .orderBy(desc(libraryItems.seq))
   return `[${rows.map((row) => row.json).join(",")}]`

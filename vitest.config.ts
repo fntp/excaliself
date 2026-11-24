@@ -14,6 +14,11 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // Provided by the Workers runtime, so Node cannot import it. A module
+      // that reaches for `env` gets the stub, which tests fill per case.
+      "cloudflare:workers": fileURLToPath(
+        new URL("./src/db/cloudflare-workers-stub.ts", import.meta.url),
+      ),
     },
   },
   test: {

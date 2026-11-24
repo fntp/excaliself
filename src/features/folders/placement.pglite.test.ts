@@ -13,8 +13,13 @@ const member = { id: "member-b", email: "b@example.com", name: "B" }
 
 let db: Db
 beforeAll(async () => {
-  db = await createTestDb()
-  await db.insert(users).values(member)
+  db = createTestDb()
+  // The admin's Private folder below references this row, so the user has to
+  // exist: SQLite enforces foreign keys, as D1 does.
+  await db.insert(users).values([
+    member,
+    { id: demoAdmin.id, email: demoAdmin.email, name: demoAdmin.name },
+  ])
   await db.insert(folders).values([
     { id: "team-folder", name: "Team", space: "team", createdBy: member.id },
     {
