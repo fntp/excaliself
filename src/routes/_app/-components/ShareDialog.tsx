@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
-import { Check, Copy, Link2, RefreshCw, Users } from "lucide-react"
+import { Bot, Check, Copy, Link2, RefreshCw, Users } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
@@ -11,6 +11,7 @@ import {
 import type { ShareAudience } from "@/features/shares/access"
 import {
   useCreateShare,
+  useMintAiLink,
   useRegenerateShare,
   useSetShareAudience,
   useStopSharing,
@@ -87,6 +88,82 @@ function MemberLinkRow({ url }: { url: string }) {
         )}
         {copied ? m.share_copied() : m.share_copy_member_link()}
       </Button>
+    </div>
+  )
+}
+
+/**
+ * The link an AI client reads the drawing from. Its own section, not a share
+ * link: it grants reading one drawing to whoever holds it, and expires, so the
+ * panel says both rather than letting it pass for a live-editing link.
+ */
+function AiLinkSection({ drawingId }: { drawingId: string }) {
+  const mint = useMintAiLink()
+  const { copied, copy } = useCopy()
+  const [link, setLink] = useState<{ url: string; expiresAt: string } | null>(
+    null,
+  )
+  const [hours] = useState(1)
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border/60 p-3">
+      <div className="flex items-start gap-3">
+        <Bot className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="text-[13px] font-medium text-foreground">
+            {m.ai_link_title()}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {m.ai_link_description()}
+          </span>
+        </span>
+      </div>
+
+      {link && (
+        <>
+          <div className="flex items-center gap-1.5 rounded-lg bg-muted p-1 pl-3">
+            <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground/80">
+              {link.url.replace(/^https?:\/\//, "")}
+            </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => copy(link.url)}
+              className="h-7 shrink-0 gap-1.5 px-2 text-xs"
+            >
+              {copied ? (
+                <Check className="h-3.5 w-3.5 text-emerald-600" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )}
+              {copied ? m.ai_link_copied() : m.share_copy()}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {m.ai_link_expires({
+              hours: m.ai_link_hours({ count: hours }),
+            })}
+          </p>
+        </>
+      )}
+
+      {!link && (
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() =>
+            mint.mutate(
+              { drawingId, ttlHours: hours },
+              { onSuccess: (result) => setLink(result) },
+            )
+          }
+          disabled={mint.isPending}
+          className="h-7 w-full gap-1.5 text-xs"
+        >
+          <Bot className="h-3.5 w-3.5" />
+          {m.ai_link_copy()}
+        </Button>
+      )}
     </div>
   )
 }
@@ -241,6 +318,7 @@ export function ShareDialog({
               url={`${window.location.origin}/draw/${drawingId}`}
             />
           )}
+          <AiLinkSection drawingId={drawingId} />
         </div>
         {shared && (
           <div className="flex min-w-0 items-center justify-between border-t border-border/60 bg-muted/40 px-5 py-3">

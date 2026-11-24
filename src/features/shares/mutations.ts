@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { m } from "@/paraglide/messages"
 import type { ShareAudience } from "./access"
+import { mintAiLink } from "./ai-link"
 import { drawingShareQueryOptions } from "./queries"
 import {
   createShare,
@@ -72,6 +73,19 @@ export function useRegenerateShare(drawingId: string) {
       })
     },
     onError: () => toast.error(m.share_regenerate_failed()),
+  })
+}
+
+/**
+ * The link a member hands their AI client. Minted on each ask rather than
+ * cached: it carries its own expiry, and a stale one in the cache would look
+ * live while the server had already refused it.
+ */
+export function useMintAiLink() {
+  return useMutation({
+    mutationFn: (input: { drawingId: string; ttlHours: number }) =>
+      mintAiLink({ data: input }),
+    onError: () => toast.error(m.ai_link_failed()),
   })
 }
 

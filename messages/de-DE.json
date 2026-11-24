@@ -859,5 +859,21 @@
   "guest_excalidraw_links": "Excalidraw-Links",
   "guest_gate_title": "Melde dich an, um diese Zeichnung zu öffnen",
   "guest_gate_subtitle": "„{name}“ ist für Mitglieder dieser Instanz freigegeben",
-  "guest_gate_return": "Nach der Anmeldung kommst du direkt zur Zeichnung zurück."
+  "guest_gate_return": "Nach der Anmeldung kommst du direkt zur Zeichnung zurück.",
+  "ai_link_title": "KI verbinden",
+  "ai_link_description": "Kopiere einen Link, von dem deine KI diese Zeichnung lesen kann, damit sie dort weitermacht, wo du aufgehört hast.",
+  "ai_link_copy": "KI-Link erstellen",
+  "ai_link_copied": "Kopiert",
+  "ai_link_expires": "Gültig für {hours}. Wer den Link hat, kann diese Zeichnung lesen — teile ihn nur dort, wo du auch die Zeichnung selbst teilen würdest.",
+  "ai_link_failed": "Link konnte nicht erstellt werden. Versuch es erneut.",
+  "ai_link_hours": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "1 Stunde",
+        "countPlural=*": "{count} Stunden"
+      }
+    }
+  ]
 }

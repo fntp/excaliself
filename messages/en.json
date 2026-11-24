@@ -859,5 +859,21 @@
   "guest_excalidraw_links": "Excalidraw links",
   "guest_gate_title": "Sign in to open this drawing",
   "guest_gate_subtitle": "“{name}” is shared with members of this instance",
-  "guest_gate_return": "You'll return to the drawing right after signing in."
+  "guest_gate_return": "You'll return to the drawing right after signing in.",
+  "ai_link_title": "Connect an AI",
+  "ai_link_description": "Copy a link your AI can read this drawing from, so it can pick up where you left off.",
+  "ai_link_copy": "Make an AI link",
+  "ai_link_copied": "Copied",
+  "ai_link_expires": "Works for {hours}. Anyone holding it can read this drawing, so share it only where you'd paste the drawing itself.",
+  "ai_link_failed": "Could not make the link. Try again.",
+  "ai_link_hours": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "1 hour",
+        "countPlural=*": "{count} hours"
+      }
+    }
+  ]
 }

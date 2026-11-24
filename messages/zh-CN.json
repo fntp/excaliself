@@ -829,5 +829,21 @@
   "guest_excalidraw_links": "Excalidraw 链接",
   "guest_gate_title": "登录以打开此绘图",
   "guest_gate_subtitle": "“{name}”已共享给此实例的成员",
-  "guest_gate_return": "登录后你将直接返回此绘图。"
+  "guest_gate_return": "登录后你将直接返回此绘图。",
+  "ai_link_title": "接入 AI",
+  "ai_link_description": "复制一条链接交给 AI，让它读懂这张图并从你停下的地方接着画。",
+  "ai_link_copy": "生成 AI 链接",
+  "ai_link_copied": "已复制",
+  "ai_link_expires": "{hours}内有效。持有链接的人都能读取这张图，请只在愿意把图本身交出去的地方分享。",
+  "ai_link_failed": "生成链接失败，请重试。",
+  "ai_link_hours": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "1 小时",
+        "countPlural=*": "{count} 小时"
+      }
+    }
+  ]
 }

@@ -889,5 +889,21 @@
   "guest_excalidraw_links": "Liens Excalidraw",
   "guest_gate_title": "Connectez-vous pour ouvrir ce dessin",
   "guest_gate_subtitle": "« {name} » est partagé avec les membres de cette instance",
-  "guest_gate_return": "Vous reviendrez au dessin juste après vous être connecté."
+  "guest_gate_return": "Vous reviendrez au dessin juste après vous être connecté.",
+  "ai_link_title": "Connecter une IA",
+  "ai_link_description": "Copiez un lien depuis lequel votre IA peut lire ce dessin, pour qu'elle reprenne là où vous vous êtes arrêté.",
+  "ai_link_copy": "Créer un lien IA",
+  "ai_link_copied": "Copié",
+  "ai_link_expires": "Valable {hours}. Toute personne qui a le lien peut lire ce dessin : ne le partagez que là où vous partageriez le dessin.",
+  "ai_link_failed": "Impossible de créer le lien. Réessayez.",
+  "ai_link_hours": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} heure",
+        "countPlural=*": "{count} heures"
+      }
+    }
+  ]
 }

@@ -29,6 +29,11 @@ vi.mock("@/features/shares/server", () => ({
   setShareAudience: vi.fn(),
 }))
 
+// A server fn pulls in the database and env; the dialog only mints on click.
+vi.mock("@/features/shares/ai-link", () => ({
+  mintAiLink: vi.fn(),
+}))
+
 const TOKEN = "a".repeat(64)
 const SHARE: { token: string; audience: ShareAudience; createdAt: Date } = {
   token: TOKEN,

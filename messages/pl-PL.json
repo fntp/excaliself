@@ -919,5 +919,23 @@
   "guest_excalidraw_links": "Linki Excalidraw",
   "guest_gate_title": "Zaloguj się, aby otworzyć ten rysunek",
   "guest_gate_subtitle": "„{name}” jest udostępniony członkom tej instancji",
-  "guest_gate_return": "Zaraz po zalogowaniu wrócisz do rysunku."
+  "guest_gate_return": "Zaraz po zalogowaniu wrócisz do rysunku.",
+  "ai_link_title": "Połącz AI",
+  "ai_link_description": "Skopiuj link, z którego Twoje AI odczyta ten rysunek, żeby mogło kontynuować od miejsca, w którym skończyłeś.",
+  "ai_link_copy": "Utwórz link dla AI",
+  "ai_link_copied": "Skopiowano",
+  "ai_link_expires": "Działa przez {hours}. Każdy, kto ma link, może odczytać ten rysunek, więc udostępniaj go tylko tam, gdzie udostępniłbyś sam rysunek.",
+  "ai_link_failed": "Nie udało się utworzyć linku. Spróbuj ponownie.",
+  "ai_link_hours": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} godzinę",
+        "countPlural=few": "{count} godziny",
+        "countPlural=many": "{count} godzin",
+        "countPlural=*": "{count} godzin"
+      }
+    }
+  ]
 }
